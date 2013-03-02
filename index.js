@@ -46,8 +46,9 @@ Bucket.prototype.value = function() {
 
 // rotate the history
 Bucket.prototype.rotate = function() {
-  if(!this._unsafe && this._rotated[0] && this._getCurrent(this._humanUnit).getTime() == this._rotated[0].getTime()) {
-    // TODO: take into account multiplier!
+  if(!this._unsafe &&
+      this._rotated[0] &&
+      this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit) {
     return false; // still in the same time interval, so we should not rotate
   }
   // add a new item at the front

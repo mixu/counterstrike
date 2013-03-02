@@ -87,7 +87,7 @@ exports['given a counter'] = {
 
   'rotating logs works correctly when rotation checks for time elapsed': function() {
     var c = new Bucket({
-        duration: ,
+        duration: 2,
         unit: 'second',
         buckets: 3// three items of history
       });
