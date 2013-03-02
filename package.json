@@ -1,0 +1,24 @@
+{
+  "name": "bucket-count",
+  "description": "Time-based counters and interval trackers for collecting metrics in memory.",
+  "version": "0.0.1",
+  "author": "Mikito Takada <mikito.takada@gmail.com>",
+  "main": "index.js",
+  "keywords": [
+    "counter",
+    "stats",
+    "statistics",
+    "metric",
+    "metrics"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mixu/bucket-count.git"
+  },
+  "devDependencies": {
+    "mocha": "~1.8.1"
+  },
+  "scripts": {
+    "test": "make test"
+  }
+}
