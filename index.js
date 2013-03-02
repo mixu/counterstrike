@@ -1,52 +1,65 @@
-function Bucket(options) {
-  var now = new Date(),
-      currentPeriod;
+var sizes = {
+  hour: 60 * 60 * 1000,
+  minute: 60 * 1000,
+  second: 1000
+};
 
+function Bucket(options) {
   // settings
-  this._unit = options.unit;
+  this._humanUnit = options.unit;
+  this._unit = sizes[options.unit];
   this._duration = options.duration;
   this._buckets = options.buckets;
+  this._unsafe = options.unsafe || false;
 
-  switch(options.unit) {
-    case 'hour':
-      currentPeriod = new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
-      this._unit = 60 * 60 * 1000;
-      break;
-    case 'minute':
-      currentPeriod = new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
-      this._unit = 60 * 1000;
-      break;
-    case 'second':
-      currentPeriod = new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
-      this._unit = 1000;
-      break;
-    default:
+  // track history as an array
+  this._history = [];
+  // track the rotation times to know when the values in history were recorded
+  this._rotated = [];
 
-  }
-  this._currentKey = currentPeriod.getTime();
-  this._history = {};
-  this._history[this._currentKey] = 0;
   this.rotate();
 }
 
+Bucket.prototype._getCurrent = function(unit) {
+  var now = new Date();
+  switch(unit) {
+    case 'hour':
+      return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
+    case 'minute':
+      return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
+      break;
+    case 'second':
+      return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
+    default:
+  }
+  return new Date();
+}
+
 Bucket.prototype.inc = function(n) {
-  this._history[this._currentKey] += (arguments.length > 0 ? n : 1);
-  return this._history[this._currentKey];
+  this._history[0] += (arguments.length > 0 ? n : 1);
+  return this._history[0];
+};
+
+Bucket.prototype.value = function() {
+  return this._history[0];
 };
 
 // rotate the history
 Bucket.prototype.rotate = function() {
-  // clear out any items that are too old, also, figure out what the oldest period is in history
-
-  // remove any history that is older than the duration times `options.buckets`
-
-
-
-  // if there are fewer history items than `options.buckets`, then fill them in
-  for(var i = 0; i < this._buckets; i++) {
-    this._history[ this._currentKey + this._duration * this._unit * i ] = 0;
+  if(!this._unsafe && this._rotated[0] && this._getCurrent(this._humanUnit).getTime() == this._rotated[0].getTime()) {
+    // TODO: take into account multiplier!
+    return false; // still in the same time interval, so we should not rotate
+  }
+  // add a new item at the front
+  this._history.unshift(0);
+  this._rotated.unshift(this._getCurrent(this._humanUnit));
+  // remove the last item while necessary
+  while(this._history.length > this._buckets) {
+    this._history.pop();
+    this._rotated.pop();
   }
 
+  return true; // was rotated
 };
 
 Bucket.prototype.history = function() {

@@ -26,10 +26,12 @@ exports['given a counter'] = {
         unit: 'hour',
         buckets: 24 // retain one day's worth of data
       });
+
     assert.equal(this.c.inc(1), 1);
     assert.equal(this.c.inc(1), 2);
   },
 
+/*
   'the day is divided into clean increments based on the unit and duration': function() {
     var sizes = {
       hour: 60 * 60 * 1000,
@@ -45,25 +47,84 @@ exports['given a counter'] = {
           buckets: 24 // retain one day's worth of data
         });
 
-      var currentPeriod = getPeriod(unit);
+      var currentPeriod = getPeriod(unit).getTime();
 
       var history = c.history();
 
       // assert that all history periods are hours, and are two hours apart
-      Object.keys(history).forEach(function(time) {
-        // console.log(new Date(parseInt(time, 10)), currentPeriod);
-        assert.equal(new Date(parseInt(time, 10)).getTime(), currentPeriod.getTime());
-        currentPeriod = new Date(currentPeriod.getTime() + 2 * sizes[unit]);
+      Object.keys(history).sort(function(a, b) { return parseInt(b, 10) - parseInt(a, 10);}).forEach(function(time) {
+        console.log(new Date(parseInt(time, 10)), new Date(currentPeriod));
+        assert.equal(new Date(parseInt(time, 10)).getTime(), currentPeriod);
+        currentPeriod = currentPeriod - 2 * sizes[unit];
       });
     });
   },
+*/
+  'rotating logs works correctly when rotation does not check for time elapsed': function() {
+    var c = new Bucket({
+        unsafe: true,
+        duration: 1,
+        unit: 'second',
+        buckets: 3// three items of history
+      });
 
-  'rotating logs works correctly': function() {
+    c.inc();
+    assert.equal(1, c.value());
+    console.log(c);
+    c.rotate();
+    c.inc(10);
+    assert.equal(10, c.value());
+    console.log(c);
+    c.rotate();
+    c.inc(100);
+    assert.equal(100, c.value());
+    console.log(c);
+    c.rotate();
+    c.inc(1000);
+    assert.equal(1000, c.value());
+    console.log(c);
+  },
 
+  'rotating logs works correctly when rotation checks for time elapsed': function() {
+    var c = new Bucket({
+        duration: ,
+        unit: 'second',
+        buckets: 3// three items of history
+      });
 
+    var exit = false;
+    var checks = [
+      function() {
+        c.inc();
+        assert.equal(1, c.value());
+        console.log(c);
+      },
+      function() {
+        c.inc(10);
+        assert.equal(10, c.value());
+        console.log(c);
+
+      },
+      function() {
+        c.inc(100);
+        assert.equal(100, c.value());
+        console.log(c);
+      },
+      function() {
+        c.inc(1000);
+        assert.equal(1000, c.value());
+        console.log(c);
+        exit = true;
+      }
+    ];
+
+    while(!exit) {
+      if(c.rotate()) {
+        checks[0]();
+        checks.shift();
+      }
+    }
   }
-
-
 };
 
 // if this module is the script being run, then run the tests:
