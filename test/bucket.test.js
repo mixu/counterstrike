@@ -6,13 +6,12 @@ function getPeriod(unit) {
     switch(unit) {
     case 'hour':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
-      break;
     case 'minute':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
-      break;
     case 'second':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
-      break;
+    case 'millisecond':
+      return new Date();
     default:
 
   }
@@ -64,7 +63,7 @@ exports['given a counter'] = {
     var c = new Bucket({
         unsafe: true,
         duration: 1,
-        unit: 'second',
+        unit: 'millisecond',
         buckets: 3// three items of history
       });
 
@@ -88,7 +87,7 @@ exports['given a counter'] = {
   'rotating logs works correctly when rotation checks for time elapsed': function() {
     var c = new Bucket({
         duration: 2,
-        unit: 'second',
+        unit: 'millisecond',
         buckets: 3// three items of history
       });
 
@@ -124,7 +123,73 @@ exports['given a counter'] = {
         checks.shift();
       }
     }
+  },
+
+  'throttling server requests': {
+
+    before: function() {
+      var counter = this.c = new Bucket({
+        duration: 2,
+        unit: 'millisecond',
+        buckets: 1
+      });
+
+      var maxRequests = 3;
+
+      this.request = function() {
+        if (counter.inc(1) > maxRequests) {
+          return 'throttle';
+        } else{
+          return maxRequests - counter.value()
+        }
+      }
+    },
+
+    'when the maximum number of requests is filled, no more requests are accepted': function() {
+      var expected = [2, 1, 0, 'throttle'],
+          request = this.request;
+      expected.forEach(function(expect) {
+        var actual = request();
+        console.log(actual);
+        assert.equal(expect, actual);
+      });
+    },
+
+    'after the duration has passed, more requests go through': function(done) {
+      var self = this;
+      setTimeout(function() {
+        self.c.rotate(); // works because unsafe counter
+        assert.equal(2, self.request());
+        done();
+      }, 3);
+    }
+  },
+
+  'request counters': function(done) {
+    var counter = this.c = new Bucket({
+      duration: 100, // note: smaller durations have issues since setTimeout is not millisecond-accurate (it can be ~several milliseconds late or early)
+      unit: 'millisecond',
+      buckets: 5
+    });
+
+    var rates = [ 100, 200, 300, 400, 500 ];
+    function queue() {
+      var rate = rates.pop();
+      counter.rotate();
+      counter.inc(rate);
+      if(rates.length != 0) {
+        setTimeout(queue, counter._duration + 10);
+      } else {
+        var spark = require('textspark');
+        console.log(counter.history());
+        console.log(spark(counter.history()));
+        done();
+      }
+    }
+    setTimeout(queue, counter._duration + 10);
+
   }
+
 };
 
 // if this module is the script being run, then run the tests:

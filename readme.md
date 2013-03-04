@@ -26,14 +26,13 @@ Throttling a server:
         buckets: 1 // retain one hour of data
       });
 
-    .on('request', function(req, res) {
+    var maxRequests = 10;
 
-      if (counter.inc('requests', 1) > 1000) {
+    server.on('request', function(req, res) {
+      if (counter.inc(1) > maxRequests) {
         res.end('Throttled');
       } else{
-
-        console.log('Rate limit remaining:' + counter.value());
-
+        console.log('Rate limit remaining:' + (maxRequests - counter.value()));
       }
 
     });

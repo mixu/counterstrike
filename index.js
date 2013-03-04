@@ -1,7 +1,8 @@
 var sizes = {
   hour: 60 * 60 * 1000,
   minute: 60 * 1000,
-  second: 1000
+  second: 1000,
+  millisecond: 1
 };
 
 function Bucket(options) {
@@ -30,6 +31,8 @@ Bucket.prototype._getCurrent = function(unit) {
       break;
     case 'second':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
+    case 'millisecond':
+      return new Date();
     default:
   }
   return new Date();
@@ -49,6 +52,11 @@ Bucket.prototype.rotate = function() {
   if(!this._unsafe &&
       this._rotated[0] &&
       this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit) {
+    console.log('skip',
+                'elapsed',
+                this._getCurrent(this._humanUnit).getTime() - this._rotated[0].getTime(),
+                'duration',
+                this._duration * this._unit);
     return false; // still in the same time interval, so we should not rotate
   }
   // add a new item at the front
