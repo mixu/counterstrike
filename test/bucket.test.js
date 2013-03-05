@@ -68,19 +68,19 @@ exports['given a counter'] = {
       });
 
     c.inc();
-    assert.equal(1, c.value());
+    assert.equal(1, c.get());
     console.log(c);
     c.rotate();
     c.inc(10);
-    assert.equal(10, c.value());
+    assert.equal(10, c.get());
     console.log(c);
     c.rotate();
     c.inc(100);
-    assert.equal(100, c.value());
+    assert.equal(100, c.get());
     console.log(c);
     c.rotate();
     c.inc(1000);
-    assert.equal(1000, c.value());
+    assert.equal(1000, c.get());
     console.log(c);
   },
 
@@ -95,23 +95,23 @@ exports['given a counter'] = {
     var checks = [
       function() {
         c.inc();
-        assert.equal(1, c.value());
+        assert.equal(1, c.get());
         console.log(c);
       },
       function() {
         c.inc(10);
-        assert.equal(10, c.value());
+        assert.equal(10, c.get());
         console.log(c);
 
       },
       function() {
         c.inc(100);
-        assert.equal(100, c.value());
+        assert.equal(100, c.get());
         console.log(c);
       },
       function() {
         c.inc(1000);
-        assert.equal(1000, c.value());
+        assert.equal(1000, c.get());
         console.log(c);
         exit = true;
       }
@@ -140,7 +140,7 @@ exports['given a counter'] = {
         if (counter.inc(1) > maxRequests) {
           return 'throttle';
         } else{
-          return maxRequests - counter.value()
+          return maxRequests - counter.get();
         }
       }
     },
@@ -166,27 +166,52 @@ exports['given a counter'] = {
   },
 
   'request counters': function(done) {
-    var counter = this.c = new Bucket({
-      duration: 100, // note: smaller durations have issues since setTimeout is not millisecond-accurate (it can be ~several milliseconds late or early)
-      unit: 'millisecond',
-      buckets: 5
-    });
+    this.timeout(10000);
+    // note: smaller durations have issues since setTimeout is not millisecond-accurate (it can be ~several milliseconds late or early)
+    var counter = {
+      requests: new Bucket({ duration: 1, unit: 'second', buckets: 5 }),
+      memory: new Bucket({ duration: 1, unit: 'second', buckets: 5 }),
+      loadavg: new Bucket({ duration: 1, unit: 'second', buckets: 5 }),
+    };
+
+    var os = require('os');
 
     var rates = [ 100, 200, 300, 400, 500 ];
     function queue() {
       var rate = rates.pop();
-      counter.rotate();
-      counter.inc(rate);
+
+      Object.keys(counter).forEach(function(c) {
+        counter[c].rotate();
+      });
+
+      counter.requests.inc(rate);
+      counter.memory.set(os.freemem());
+      counter.loadavg.set(os.loadavg());
+
       if(rates.length != 0) {
-        setTimeout(queue, counter._duration + 10);
+        setTimeout(queue, counter.requests._duration * 1000 + 10);
       } else {
         var spark = require('textspark');
-        console.log(counter.history());
-        console.log(spark(counter.history()));
+
+        Object.keys(counter).forEach(function(name) {
+          var history = counter[name].history();
+          console.log(name);
+          history.at.forEach(function(time, index) {
+            console.log(time.getHours() + ':'+time.getMinutes()+':'+time.getSeconds()+'.'+time.getMilliseconds(),  history.values[index]);
+          })
+        });
+
+        console.log(spark(counter.requests.history().values));
         done();
       }
     }
-    setTimeout(queue, counter._duration + 10);
+    setTimeout(queue, counter.requests._duration * 1000 + 10);
+  },
+
+  'timings': function() {
+    var responseTimes = new Bucket({ duration: 100, unit: 'millisecond', buckets: 10 });
+
+
 
   }
 

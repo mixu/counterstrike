@@ -10,7 +10,23 @@ Useful for collecting metrics, such as the number of requests per hour, or the r
 - No dependencies
 - By default, the rotation manages it's own timeouts, but you can also manage the timeouts manually if you prefer.
 
-## Counting
+## API
+
+`new Bucket(options)`: creates a new bucket.
+
+Options `{ duration: 12, unit: 'hour', buckets: 10 }`:
+
+- buckets: the number of values to keep
+- duration and unit: the interval at which the bucket is swiched (e.g. 1 day). It is a good idea to use units other than milliseconds, because if possible the intervals are made to correspond to a round number of (days/hours/minutes), e.g. if the unit is hour, then the hour starts at x:00 and rotates at (x+duration):00.
+
+`.inc()`: increment the current counter, returns the current counter value.
+
+`.get()`: returns the current value
+
+`.set()`: sets the current value
+
+
+## Examples
 
 ### Throttling / rate limiting
 
@@ -41,35 +57,34 @@ Throttling a task like a API request queue:
 
 Throttling a stream to xx KB/sec:
 
-
-### Keeping hourly counts of requests
+### Keeping counts of requests, tracking load or memory over 1, 5, 15 minutes
 
     var Bucket = require('bucket-count');
 
-    var counter = new Bucket(
-        duration: 1,
-        unit: 'hour',
-        buckets: 24 * 7 // retain one week's worth of data
-      );
+    var counter = {
+      requests: new Bucket({ duration: 100, unit: 'millisecond', buckets: 5 }),
+      memory: new Bucket({ duration: 100, unit: 'millisecond', buckets: 5 }),
+      loadavg: new Bucket({ duration: 100, unit: 'millisecond', buckets: 5 }),
+    };
 
-    .each(function(timestamp, bucket) {
-
+    server.on('request', function(req, res) {
+      counter.inc(1);
     });
 
-### Tracking load or memory over 1, 5, 15 minutes
-
     setInterval(function() {
+      counter.memory.set(os.freemem());
+      counter.loadavg.set(os.loadavg());
 
-      counter.set( os.getCpu() );
-
+      Object.keys(counter).forEach(function(name) {
+        var history = counter[name].history();
+        console.log(name);
+        history.at.forEach(function(time, index) {
+          console.log(
+              time.getHours() + ':'+time.getMinutes()+':'+time.getSeconds()+'.'+time.getMilliseconds(),
+              history.values[index]);
+        })
+      });
     }, 60 * 1000);
-
-    // Average 0..4, 0..9, 0..14
-
-    console.log('Load 1 min: '+);
-    console.log('Load 5 min: '+);
-    console.log('Load 15 min: '+);
-
 
 ## Time intervals
 

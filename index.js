@@ -43,7 +43,12 @@ Bucket.prototype.inc = function(n) {
   return this._history[0];
 };
 
-Bucket.prototype.value = function() {
+Bucket.prototype.get = function() {
+  return this._history[0];
+};
+
+Bucket.prototype.set = function(value) {
+  this._history[0] = value;
   return this._history[0];
 };
 
@@ -52,11 +57,6 @@ Bucket.prototype.rotate = function() {
   if(!this._unsafe &&
       this._rotated[0] &&
       this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit) {
-    console.log('skip',
-                'elapsed',
-                this._getCurrent(this._humanUnit).getTime() - this._rotated[0].getTime(),
-                'duration',
-                this._duration * this._unit);
     return false; // still in the same time interval, so we should not rotate
   }
   // add a new item at the front
@@ -72,7 +72,7 @@ Bucket.prototype.rotate = function() {
 };
 
 Bucket.prototype.history = function() {
-  return this._history;
+  return { at: this._rotated, values: this._history };
 };
 
 
