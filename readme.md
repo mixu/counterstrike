@@ -85,37 +85,3 @@ Throttling a stream to xx KB/sec:
         })
       });
     }, 60 * 1000);
-
-## Time intervals
-
-    var Bucket = require('bucket-count');
-
-    var counter = new Bucket({
-        duration: 1,
-        unit: 'hour',
-        buckets: 24 * 7 // retain one week's worth of data
-      });
-
-    .on('request', function(req, res) {
-
-      var start = new Date();
-
-      setTimeout(function() {
-        res.end();
-        counter.interval(new Date() - start);
-      });
-
-      Response times
-      minimum: 1408
-      maximum: 5725
-      mean: 2540.66
-      std_dev: 1798.58
-      median: 1499
-      count: 6
-      75%: 4198.75
-      95%: 5725
-      99%: 5725
-      99.9%: 5725
-
-
-    });

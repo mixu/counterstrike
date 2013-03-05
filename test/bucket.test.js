@@ -191,7 +191,7 @@ exports['given a counter'] = {
       if(rates.length != 0) {
         setTimeout(queue, counter.requests._duration * 1000 + 10);
       } else {
-        var spark = require('textspark');
+        // var spark = require('textspark');
 
         Object.keys(counter).forEach(function(name) {
           var history = counter[name].history();
@@ -201,20 +201,12 @@ exports['given a counter'] = {
           })
         });
 
-        console.log(spark(counter.requests.history().values));
+        // console.log(spark(counter.requests.history().values));
         done();
       }
     }
     setTimeout(queue, counter.requests._duration * 1000 + 10);
-  },
-
-  'timings': function() {
-    var responseTimes = new Bucket({ duration: 100, unit: 'millisecond', buckets: 10 });
-
-
-
   }
-
 };
 
 // if this module is the script being run, then run the tests:
