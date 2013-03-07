@@ -1,5 +1,5 @@
 var assert = require('assert'),
-    Bucket = require('../index.js');
+    Counter = require('../index.js');
 
 function getPeriod(unit) {
     var now = new Date();
@@ -20,7 +20,7 @@ function getPeriod(unit) {
 exports['given a counter'] = {
 
   'can increment counter': function() {
-    this.c = new Bucket({
+    this.c = new Counter({
         duration: 1,
         unit: 'hour',
         buckets: 24 // retain one day's worth of data
@@ -40,7 +40,7 @@ exports['given a counter'] = {
 
     ['hour', 'minute', 'second'].forEach(function(unit) {
 //      console.log('unit', unit);
-      var c = new Bucket({
+      var c = new Counter({
           duration: 2,
           unit: unit,
           buckets: 24 // retain one day's worth of data
@@ -60,7 +60,7 @@ exports['given a counter'] = {
   },
 */
   'rotating logs works correctly when rotation does not check for time elapsed': function() {
-    var c = new Bucket({
+    var c = new Counter({
         unsafe: true,
         duration: 1,
         unit: 'millisecond',
@@ -85,7 +85,7 @@ exports['given a counter'] = {
   },
 
   'rotating logs works correctly when rotation checks for time elapsed': function() {
-    var c = new Bucket({
+    var c = new Counter({
         duration: 2,
         unit: 'millisecond',
         buckets: 3// three items of history
@@ -128,7 +128,7 @@ exports['given a counter'] = {
   'throttling server requests': {
 
     before: function() {
-      var counter = this.c = new Bucket({
+      var counter = this.c = new Counter({
         duration: 2,
         unit: 'millisecond',
         buckets: 1
@@ -169,9 +169,9 @@ exports['given a counter'] = {
     this.timeout(10000);
     // note: smaller durations have issues since setTimeout is not millisecond-accurate (it can be ~several milliseconds late or early)
     var counter = {
-      requests: new Bucket({ duration: 1, unit: 'second', buckets: 5 }),
-      memory: new Bucket({ duration: 1, unit: 'second', buckets: 5 }),
-      loadavg: new Bucket({ duration: 1, unit: 'second', buckets: 5 }),
+      requests: new Counter({ duration: 1, unit: 'second', buckets: 5 }),
+      memory: new Counter({ duration: 1, unit: 'second', buckets: 5 }),
+      loadavg: new Counter({ duration: 1, unit: 'second', buckets: 5 }),
     };
 
     var os = require('os');

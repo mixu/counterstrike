@@ -5,23 +5,29 @@ var sizes = {
   millisecond: 1
 };
 
-function Bucket(options) {
+function Counter(options) {
   // settings
   this._humanUnit = options.unit;
   this._unit = sizes[options.unit];
   this._duration = options.duration;
   this._buckets = options.buckets;
+  // if this is set, then calls to rotate() will not check the time first (which allows for premature bucket rotation)
   this._unsafe = options.unsafe || false;
+  // if this is set, then the counter takes care of rotating itself automatically by scheduling a timeout
+  // if it is not set, then you need to make sure that the counter is called at least once per each duration
+  this._automatic = options.automatic || true;
 
   // track history as an array
   this._history = [];
   // track the rotation times to know when the values in history were recorded
   this._rotated = [];
+  // timeout for next rotation
+  this._timeout = null;
 
   this.rotate();
 }
 
-Bucket.prototype._getCurrent = function(unit) {
+Counter.prototype._getCurrent = function(unit) {
   var now = new Date();
   switch(unit) {
     case 'hour':
@@ -38,26 +44,31 @@ Bucket.prototype._getCurrent = function(unit) {
   return new Date();
 }
 
-Bucket.prototype.inc = function(n) {
+Counter.prototype.inc = function(n) {
   this._history[0] += (arguments.length > 0 ? n : 1);
   return this._history[0];
 };
 
-Bucket.prototype.get = function() {
+Counter.prototype.get = function() {
   return this._history[0];
 };
 
-Bucket.prototype.set = function(value) {
+Counter.prototype.set = function(value) {
   this._history[0] = value;
   return this._history[0];
 };
 
 // rotate the history
-Bucket.prototype.rotate = function() {
+Counter.prototype.rotate = function() {
   if(!this._unsafe &&
       this._rotated[0] &&
       this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit) {
-    return false; // still in the same time interval, so we should not rotate
+   // still in the same time interval, so we should not rotate
+    if(this._automatic) {
+      // reschedule the timer
+      this._scheduleTimeout();
+    }
+    return false;
   }
   // add a new item at the front
   this._history.unshift(0);
@@ -68,17 +79,62 @@ Bucket.prototype.rotate = function() {
     this._rotated.pop();
   }
 
+  if(this._automatic) {
+    this._scheduleTimeout();
+  }
+
   return true; // was rotated
 };
 
-Bucket.prototype.history = function() {
+Counter.prototype.history = function() {
   return { at: this._rotated, values: this._history };
 };
 
-
-// schedule a timeout
-Bucket.prototype.refresh = function() {
-
+Counter.prototype._scheduleTimeout = function() {
+  var self = this;
+  this.stop();
+  this._timeout = setTimeout(function() {
+    self.rotate();
+  }, this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit);
 };
 
-module.exports = Bucket;
+// stop the current timeout
+Counter.prototype.stop = function() {
+  if(this._timeout) {
+    clearTimeout(this._timeout);
+  }
+  this._timeout = null;
+};
+
+// Subclass the basic counter to create a hash-based counter.
+// The only difference is that the `inc`/`set`/`get` functions require a key parameter
+function CounterHash(options) {
+  Counter.apply(this, options);
+};
+
+// inherit from Counter
+CounterHash.prototype = Object.create(Counter.prototype, { constructor: { value: Counter, enumerable: false } });
+
+// override the methods to work smoothly with a hash
+
+CounterHash.prototype.inc = function(key, n) {
+  var increment = (arguments.length > 1 ? n : 1);
+  if(!this._history[0][key]) {
+    this._history[0][key] = 0;
+  }
+  this._history[0][key] += increment;
+  return this._history[0];
+};
+
+CounterHash.prototype.get = function(key) {
+  return this._history[0][key];
+};
+
+CounterHash.prototype.set = function(key, value) {
+  this._history[0][key] = value;
+  return this._history[0][key];
+};
+
+Counter.Hash = CounterHash;
+
+module.exports = Counter;

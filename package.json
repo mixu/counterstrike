@@ -1,6 +1,6 @@
 {
-  "name": "bucket-count",
-  "description": "Time-based counters and interval trackers for collecting metrics in memory.",
+  "name": "counterstrike",
+  "description": "Counters that rotate periodically for collecting metrics in memory.",
   "version": "0.0.1",
   "author": "Mikito Takada <mikito.takada@gmail.com>",
   "main": "index.js",
@@ -13,12 +13,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/mixu/bucket-count.git"
+    "url": "https://github.com/mixu/counterstrike.git"
   },
   "devDependencies": {
     "mocha": "~1.8.1"
   },
   "scripts": {
-    "test": "make test"
+    "test": "node test/counter.test.js"
   }
 }
