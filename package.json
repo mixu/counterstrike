@@ -19,6 +19,6 @@
     "mocha": "~1.8.1"
   },
   "scripts": {
-    "test": "node test/counter.test.js"
+    "test": "node test/counter.test.js && node test/examples.test.js"
   }
 }

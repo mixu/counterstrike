@@ -1,3 +1,6 @@
+var util = require('util'),
+    EventEmitter = require('events').EventEmitter;
+
 var sizes = {
   hour: 60 * 60 * 1000,
   minute: 60 * 1000,
@@ -16,6 +19,8 @@ function Counter(options) {
   // if this is set, then the counter takes care of rotating itself automatically by scheduling a timeout
   // if it is not set, then you need to make sure that the counter is called at least once per each duration
   this._automatic = options.automatic || true;
+  // default value
+  this._defaultValue = options['default'] || 0;
 
   // track history as an array
   this._history = [];
@@ -26,6 +31,8 @@ function Counter(options) {
 
   this.rotate();
 }
+
+util.inherits(Counter, EventEmitter);
 
 Counter.prototype._getCurrent = function(unit) {
   var now = new Date();
@@ -38,6 +45,14 @@ Counter.prototype._getCurrent = function(unit) {
     case 'second':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
     case 'millisecond':
+      // with milliseconds, we'll try for even 10's and even 100's
+      if(this._duration % 500 == 0) {
+        return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/500)*500);
+      } else if(this._duration % 100 == 0) {
+        return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/100)*100);
+      } else if(this._duration % 10 == 0) {
+        return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/10)*10);
+      }
       return new Date();
     default:
   }
@@ -70,8 +85,11 @@ Counter.prototype.rotate = function() {
     }
     return false;
   }
+
+  this.emit('rotate');
+
   // add a new item at the front
-  this._history.unshift(0);
+  this._history.unshift(this._defaultValue);
   this._rotated.unshift(this._getCurrent(this._humanUnit));
   // remove the last item while necessary
   while(this._history.length > this._buckets) {
@@ -79,6 +97,7 @@ Counter.prototype.rotate = function() {
     this._rotated.pop();
   }
 
+  // schedule before rotating, so that the rotate event can cancel the timeout successfully
   if(this._automatic) {
     this._scheduleTimeout();
   }
@@ -86,24 +105,44 @@ Counter.prototype.rotate = function() {
   return true; // was rotated
 };
 
-Counter.prototype.history = function() {
+Counter.prototype.history = function(ago) {
+  if(arguments.length > 0) {
+    // filter history by time
+    var until = 0;
+    while(until < this._rotated.length && this._rotated[until].getTime() >= ago) {
+      until++;
+    }
+    this._rotated.forEach(function(time, index) {
+      if(time.getTime() >= ago) {
+        console.log(index, (time.getTime() >= ago ? 't': 'f'), ago, time.getTime());
+      }
+    });
+    return {
+      at: this._rotated.slice(0, until),
+      values: this._history.slice(0, until)
+    };
+  }
+
   return { at: this._rotated, values: this._history };
 };
 
 Counter.prototype._scheduleTimeout = function() {
-  var self = this;
-  this.stop();
+  var self = this,
+      last = this._rotated[0].getTime(),
+      current = new Date().getTime(),
+      elapsed = current - last,
+      duration = this._duration * this._unit;
+  this._timeout && clearTimeout(this._timeout);
   this._timeout = setTimeout(function() {
     self.rotate();
-  }, this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit);
+  }, (elapsed < duration ? duration - elapsed : 0));
 };
 
 // stop the current timeout
 Counter.prototype.stop = function() {
-  if(this._timeout) {
-    clearTimeout(this._timeout);
-  }
+  this._timeout && clearTimeout(this._timeout);
   this._timeout = null;
+  this._automatic = false;
 };
 
 // Subclass the basic counter to create a hash-based counter.
@@ -113,7 +152,7 @@ function CounterHash(options) {
 };
 
 // inherit from Counter
-CounterHash.prototype = Object.create(Counter.prototype, { constructor: { value: Counter, enumerable: false } });
+util.inherits(CounterHash, Counter);
 
 // override the methods to work smoothly with a hash
 
