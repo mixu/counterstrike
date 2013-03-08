@@ -29,7 +29,6 @@ Options `{ duration: 12, unit: 'hour', buckets: 10 }`:
 
 - buckets: the number of values to keep
 - duration and unit: the interval at which the bucket is swiched (e.g. 1 day). It is a good idea to use units other than milliseconds, because if possible the intervals are made to correspond to a round number of (days/hours/minutes), e.g. if the unit is hour, then the hour starts at x:00 and rotates at (x+duration):00.
-- default: the default value, set when the bucket is rotated. Default is 0.
 - automatic (optional): If false, then timeouts are not scheduled automatically, you need to call rotate() manually at least once every aggregation interval. Defaults to true, which means that a timeout is scheduled automatically after every interval and you don't need to worry about calling rotate().
 - unsafe (optional): If true, then calls to rotate() always rotate; defaults to false, which means that calls to rotate() check that the current time falls onto a new interval before rotating. This makes it easier to call rotate since you can make redundant calls without worrying about it.
 
@@ -68,9 +67,8 @@ Throttling a server:
     var Counter = require('counterstrike');
 
     var counter = new Counter({
-        duration: 1,
-        unit: 'hour',
-        buckets: 1 // retain one hour of data
+        store: '24h',
+        interval: '1h'
       });
 
     var maxRequests = 10;
@@ -93,9 +91,9 @@ Throttling a stream to xx KB/sec:
     var Counter = require('counterstrike');
 
     var counter = {
-      requests: new Counter({ duration: 100, unit: 'millisecond', buckets: 5 }),
-      memory: new Counter({ duration: 100, unit: 'millisecond', buckets: 5 }),
-      loadavg: new Counter({ duration: 100, unit: 'millisecond', buckets: 5 }),
+      requests: new Counter({ interval: '100ms', store: '10m' }),
+      memory: new Counter({ interval: '100ms', store: '10m' }),
+      loadavg: new Counter({ interval: '100ms', store: '10m' }),
     };
 
     server.on('request', function(req, res) {
@@ -127,35 +125,57 @@ Let's say you want to track:
 
 And you want to aggregate the values by adding the values - this is useful for something like a request counter, but for other types of countable things you might use an average, sum, min, max, or the latest value depending on what you're tracking.
 
+You could run these as different counters, each on their own time interval. The only problem with that approach is that since timeouts are not guaranteed to run at a particular time, you can get odd groupings and/or duplicate counts of items.
+
+An example of this issue might be when the lowest level emits 1, 2, 3, 4 (at slightly irregular intervals) and the upper level aggregates this at two points in time as the histories: [1, 2], [2, 3] and [4]. Here, 2 has been selected twice because the upper level timer inevitably runs either slightly before, or slightly after the scheduled time.
+
+Instead, you should use just one timeout - the lowest level one - to drive the upper level aggregation. This guarantees that each item is only processed once, and that each aggregation is consistent with each other.
+
+
     var Counter = require('counterstrike');
 
     var realtime = new Counter({
-            duration: 10, unit: 'second',
+            store: '1h',
+            interval: '10s',
             buckets: (60 * 60) / 10 // retain an hour, e.g. 60 minutes in seconds / 10 seconds
           }),
         hourly = new Counter({
-            duration: 1, unit: 'minute',
+            store: '24h',
+            interval: '1m',
+            source: realtime
+
             buckets: (24 * 60) // e.g. 24 hours in minutes / 1 minute
           }),
         daily = new Counter({
-            duration: 1, unit: 'day',
+            store: '1w',
+            interval: '1d',
+            source: hourly
+
             buckets: 7 // e.g. 1 week in days / 1 day
           });
 
-    // when the hourly values rotate, pull in the real time data from the last 1 minute and sum it
-    hourly.on('rotate', function() {
-      var sum = realtime.history('1 minute').values.reduce(function(prev, current) {
-        return prev + current;
-      }, 0);
-      hourly.set(sum);
+    var i = 0;
+
+    // when the realtime values rotate, check whether you should aggregate into and rotate the hourly counter
+
+    realtime.on('rotate', function() {
+      console.log('value', realtime.get());
+      i++;
+      if(i % (hourly._duration / realtime._duration) == 0) {
+        var values = realtime.history().values;
+        console.log(values);
+        var sum = values.slice(0, (hourly._duration / realtime._duration)).reduce(function(prev, current) {
+          return prev + current;
+        }, 0);
+        hourly.set(sum);
+        hourly.rotate();
+      }
     });
 
-    // when the daily values rotate, pull in hourly data from the last day and sum it
-    daily.on('rotate', function() {
-      var sum = realtime.history('1 minute').values.reduce(function(prev, current) {
-        return prev + current;
-      }, 0);
+    // when the hourly values rotate, check whether you should aggregate into the daily counter
+    hourly.on('rotate', function() {
       daily.set(sum);
+      daily.rotate();
     });
 
 

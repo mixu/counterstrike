@@ -91,55 +91,62 @@ exports['examples'] = {
   'limited data retention': function(done) {
     this.timeout(200000);
     var realtime = new Counter({
-            duration: 500, unit: 'millisecond',
+            duration: 10, unit: 'millisecond',
             buckets: 10 // retain 200 milliseconds
           }),
         hourly = new Counter({
-            duration: 1, unit: 'second',
+            automatic: false,
+            unsafe: true,
+            duration: 20, unit: 'millisecond',
             buckets: 10 // retain 1 second of data
           });
 
     // increment the hourly counter when the realtime counter is updated
-
-
-    // when the hourly values rotate, pull in the real time data from the last 1 minute and sum it
-    hourly.on('rotate', function() {
-      var items = realtime.history(hourly._rotated[0].getTime()).values;
-      console.log(hourly._rotated[0].getTime(), items);
-      var sum = items.reduce(function(prev, current) {
-        return prev + current;
-      }, 0);
-      hourly.set(sum);
-
-      if(stopped) {
-        hourly.stop();
-
-        var total = hourly.history().values.reduce(function(prev, current) {
-            return prev + current;
-          }, 0);
-        console.log(total);
-
-        assert.deepEqual([ 0,9,8,7,6,5,4,3,2,1 ], realtime.history().values);
-        assert.equal(45, total);
-//        assert.deepEqual([ 0, 17,13,9,5,1], hourly.history().values);
-        done();
-      }
-    });
-
-    // use the realtime rotate timeout to enter in data
-    var counter = 1, stopped = false;
+    var counter = 1,
+        stopped = false;
     realtime.on('rotate', function() {
-      var rate = counter++;
       if(counter > 10) {
         // end
         realtime.stop();
         stopped = true;
+
+        if(stopped) {
+          var total = hourly.history().values.reduce(function(prev, current) {
+              return prev + current;
+            }, 0);
+          console.log(total);
+          console.log(hourly.history().values);
+
+          assert.equal(55, total);
+          assert.deepEqual([ 0,10,9,8,7,6,5,4,3,2 ], realtime.history().values);
+          assert.deepEqual([ 0,19,15,11,7,3], hourly.history().values);
+          done();
+        }
+
+
       } else {
-        process.nextTick(function() {
-          realtime.inc(rate);
-        });
+        realtime.inc(counter);
+        counter++;
       }
     });
+
+    // It's better to use the absolute number of items seen to perform aggregations, because
+    // timeouts will always run either after or before the interval (never concurrently) so items can be grouped oddly and counted multiple times.
+    var i = 0;
+    realtime.on('rotate', function() {
+      console.log('value', realtime.get());
+      i++;
+      if(i % (hourly._duration / realtime._duration) == 0) {
+        var values = realtime.history().values;
+        console.log(values);
+        var sum = values.slice(0, (hourly._duration / realtime._duration)).reduce(function(prev, current) {
+          return prev + current;
+        }, 0);
+        hourly.set(sum);
+        hourly.rotate();
+      }
+    });
+
   }
 
 };

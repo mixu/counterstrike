@@ -18,9 +18,7 @@ function Counter(options) {
   this._unsafe = options.unsafe || false;
   // if this is set, then the counter takes care of rotating itself automatically by scheduling a timeout
   // if it is not set, then you need to make sure that the counter is called at least once per each duration
-  this._automatic = options.automatic || true;
-  // default value
-  this._defaultValue = options['default'] || 0;
+  this._automatic = (typeof options.automatic === 'undefined' ? true : options.automatic);
 
   // track history as an array
   this._history = [];
@@ -46,9 +44,7 @@ Counter.prototype._getCurrent = function(unit) {
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
     case 'millisecond':
       // with milliseconds, we'll try for even 10's and even 100's
-      if(this._duration % 500 == 0) {
-        return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/500)*500);
-      } else if(this._duration % 100 == 0) {
+      if(this._duration % 100 == 0) {
         return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/100)*100);
       } else if(this._duration % 10 == 0) {
         return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/10)*10);
@@ -73,12 +69,17 @@ Counter.prototype.set = function(value) {
   return this._history[0];
 };
 
+Counter.prototype._reset = function() {
+  this._history.unshift(0);
+  this._rotated.unshift(this._getCurrent(this._humanUnit));
+};
+
 // rotate the history
 Counter.prototype.rotate = function() {
   if(!this._unsafe &&
       this._rotated[0] &&
       this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit) {
-   // still in the same time interval, so we should not rotate
+    // still in the same time interval, so we should not rotate
     if(this._automatic) {
       // reschedule the timer
       this._scheduleTimeout();
@@ -89,8 +90,7 @@ Counter.prototype.rotate = function() {
   this.emit('rotate');
 
   // add a new item at the front
-  this._history.unshift(this._defaultValue);
-  this._rotated.unshift(this._getCurrent(this._humanUnit));
+  this._reset();
   // remove the last item while necessary
   while(this._history.length > this._buckets) {
     this._history.pop();
@@ -105,24 +105,7 @@ Counter.prototype.rotate = function() {
   return true; // was rotated
 };
 
-Counter.prototype.history = function(ago) {
-  if(arguments.length > 0) {
-    // filter history by time
-    var until = 0;
-    while(until < this._rotated.length && this._rotated[until].getTime() >= ago) {
-      until++;
-    }
-    this._rotated.forEach(function(time, index) {
-      if(time.getTime() >= ago) {
-        console.log(index, (time.getTime() >= ago ? 't': 'f'), ago, time.getTime());
-      }
-    });
-    return {
-      at: this._rotated.slice(0, until),
-      values: this._history.slice(0, until)
-    };
-  }
-
+Counter.prototype.history = function() {
   return { at: this._rotated, values: this._history };
 };
 
@@ -155,6 +138,10 @@ function CounterHash(options) {
 util.inherits(CounterHash, Counter);
 
 // override the methods to work smoothly with a hash
+CounterHash.prototype._reset = function() {
+  this._history.unshift({});
+  this._rotated.unshift(this._getCurrent(this._humanUnit));
+};
 
 CounterHash.prototype.inc = function(key, n) {
   var increment = (arguments.length > 1 ? n : 1);
