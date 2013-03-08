@@ -11,7 +11,7 @@ Key features:
 - Values are rotated every X seconds/minutes/hours/days, with logic that prefers rotating on well-defined intervals (e.g. at :00) to make it easy to track hourly/daily etc. metric values
 - Fixed memory usage: Maximum number of values limits how much memory is used by old data.
 - Well-defined intervals when possible: e.g. if the duration is hourly, then the day is divided into 24 periods from 00:00 - 01:00 and so on
-- Minimal external dependencies (only depends on unitology for parsing time intervals)
+- No external dependencies
 - By default, the counter manages it's own timeouts, but you can also manage the timeouts manually if you prefer to do that (e.g. if you have a bunch of other tasks that also run periodically)
 
 ## API

@@ -1,19 +1,31 @@
 var util = require('util'),
-    EventEmitter = require('events').EventEmitter;
+    EventEmitter = require('events').EventEmitter
 
-var sizes = {
-  hour: 60 * 60 * 1000,
-  minute: 60 * 1000,
-  second: 1000,
-  millisecond: 1
-};
+    unit = require('./time.js');
+
+function isNumber(n) {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+}
 
 function Counter(options) {
+  if(!options.interval || !options.store) {
+    throw new Error('Interval and store are required to construct a counter.');
+  }
+
   // settings
-  this._humanUnit = options.unit;
-  this._unit = sizes[options.unit];
-  this._duration = options.duration;
-  this._buckets = options.buckets;
+  this._interval = unit.parse(options.interval);
+  this._intervalInMillis = unit.convert(this._interval, 'ms');
+  this._store = options.store;
+  // if the store is not a number, then calculate the number from the duration
+  if(!isNumber(this._store)) {
+    // convert to the same unit
+    this._store = unit.parse(this._store);
+    var storeAmount = unit.convert( this._store, this._interval.unit);
+    this._buckets = storeAmount.value / this._interval.value;
+  } else {
+    this._buckets = this._store;
+  }
+
   // if this is set, then calls to rotate() will not check the time first (which allows for premature bucket rotation)
   this._unsafe = options.unsafe || false;
   // if this is set, then the counter takes care of rotating itself automatically by scheduling a timeout
@@ -35,18 +47,18 @@ util.inherits(Counter, EventEmitter);
 Counter.prototype._getCurrent = function(unit) {
   var now = new Date();
   switch(unit) {
-    case 'hour':
+    case 'h':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
-    case 'minute':
+    case 'm':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
       break;
-    case 'second':
+    case 's':
       return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
-    case 'millisecond':
+    case 'ms':
       // with milliseconds, we'll try for even 10's and even 100's
-      if(this._duration % 100 == 0) {
+      if(this._intervalInMillis % 100 == 0) {
         return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/100)*100);
-      } else if(this._duration % 10 == 0) {
+      } else if(this._intervalInMillis % 10 == 0) {
         return new Date( now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), Math.round(now.getMilliseconds()/10)*10);
       }
       return new Date();
@@ -71,14 +83,14 @@ Counter.prototype.set = function(value) {
 
 Counter.prototype._reset = function() {
   this._history.unshift(0);
-  this._rotated.unshift(this._getCurrent(this._humanUnit));
+  this._rotated.unshift(this._getCurrent(this._interval.unit));
 };
 
 // rotate the history
 Counter.prototype.rotate = function() {
   if(!this._unsafe &&
       this._rotated[0] &&
-      this._getCurrent(this._humanUnit).getTime() < this._rotated[0].getTime() + this._duration * this._unit) {
+      this._getCurrent(this._interval.unit).getTime() < this._rotated[0].getTime() + this._intervalInMillis) {
     // still in the same time interval, so we should not rotate
     if(this._automatic) {
       // reschedule the timer
@@ -114,7 +126,7 @@ Counter.prototype._scheduleTimeout = function() {
       last = this._rotated[0].getTime(),
       current = new Date().getTime(),
       elapsed = current - last,
-      duration = this._duration * this._unit;
+      duration = this._intervalInMillis;
   this._timeout && clearTimeout(this._timeout);
   this._timeout = setTimeout(function() {
     self.rotate();

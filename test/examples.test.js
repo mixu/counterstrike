@@ -91,19 +91,20 @@ exports['examples'] = {
   'limited data retention': function(done) {
     this.timeout(200000);
     var realtime = new Counter({
-            duration: 10, unit: 'millisecond',
-            buckets: 10 // retain 200 milliseconds
+            interval: '10 milliseconds',
+            store: '100 milliseconds', // 10 items
           }),
         hourly = new Counter({
             automatic: false,
             unsafe: true,
-            duration: 20, unit: 'millisecond',
-            buckets: 10 // retain 1 second of data
+            interval: '20 milliseconds',
+            store: '200 milliseconds' // 10 items
           });
 
     // increment the hourly counter when the realtime counter is updated
     var counter = 1,
         stopped = false;
+
     realtime.on('rotate', function() {
       if(counter > 10) {
         // end
@@ -136,10 +137,23 @@ exports['examples'] = {
     realtime.on('rotate', function() {
       console.log('value', realtime.get());
       i++;
-      if(i % (hourly._duration / realtime._duration) == 0) {
+
+      // calculate the ration using the time functions
+      var unit = require('../time.js');
+
+      // how many (small units) are there in (large unit)?
+
+      var largeInSmall = unit.convert(hourly._interval, realtime._interval.unit),
+          ratio = largeInSmall.value / realtime._interval.value;
+
+      console.log('largeInSmall', largeInSmall);
+      console.log('ratio', ratio);
+
+
+      if(i % ratio == 0) {
         var values = realtime.history().values;
         console.log(values);
-        var sum = values.slice(0, (hourly._duration / realtime._duration)).reduce(function(prev, current) {
+        var sum = values.slice(0, ratio).reduce(function(prev, current) {
           return prev + current;
         }, 0);
         hourly.set(sum);

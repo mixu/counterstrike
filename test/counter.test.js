@@ -21,16 +21,19 @@ exports['given a counter'] = {
 
   'can increment counter': function() {
     this.c = new Counter({
-        duration: 1,
-        unit: 'hour',
-        buckets: 24 // retain one day's worth of data
+        interval: '1h',
+        store: '1d' // retain one day's worth of data
       });
 
     assert.equal(this.c.inc(1), 1);
     assert.equal(this.c.inc(1), 2);
+    // check the calculations
+    assert.deepEqual(this.c._interval, { value: 1, unit: 'h'});
+    assert.deepEqual(this.c._store, { value: 1, unit: 'd' });
+    assert.equal(this.c._buckets, 24);
+
   },
 
-/*
   'the day is divided into clean increments based on the unit and duration': function() {
     var sizes = {
       hour: 60 * 60 * 1000,
@@ -39,32 +42,29 @@ exports['given a counter'] = {
     };
 
     ['hour', 'minute', 'second'].forEach(function(unit) {
-//      console.log('unit', unit);
+      console.log('unit', unit);
       var c = new Counter({
-          duration: 2,
-          unit: unit,
-          buckets: 24 // retain one day's worth of data
+          interval: '2 '+ unit,
+          store: 24 // retain 24 items
         });
 
       var currentPeriod = getPeriod(unit).getTime();
 
-      var history = c.history();
-
-      // assert that all history periods are hours, and are two hours apart
-      Object.keys(history).sort(function(a, b) { return parseInt(b, 10) - parseInt(a, 10);}).forEach(function(time) {
-        console.log(new Date(parseInt(time, 10)), new Date(currentPeriod));
-        assert.equal(new Date(parseInt(time, 10)).getTime(), currentPeriod);
+      // assert that the current rotation times are correct (e.g. on the hour, on the minute, on the second)
+      c.history().at.sort(function(a, b) { return parseInt(b, 10) - parseInt(a, 10);}).forEach(function(time) {
+        console.log(time);
+        console.log(time, new Date(currentPeriod));
+        assert.equal(time.getTime(), currentPeriod);
         currentPeriod = currentPeriod - 2 * sizes[unit];
       });
     });
   },
-*/
+
   'rotating logs works correctly when rotation does not check for time elapsed': function() {
     var c = new Counter({
         unsafe: true,
-        duration: 1,
-        unit: 'millisecond',
-        buckets: 3// three items of history
+        interval: '1 millisecond',
+        store: 3 // three items of history
       });
 
     c.inc();
@@ -86,9 +86,8 @@ exports['given a counter'] = {
 
   'rotating logs works correctly when rotation checks for time elapsed': function() {
     var c = new Counter({
-        duration: 2,
-        unit: 'millisecond',
-        buckets: 3// three items of history
+        interval: '2 milliseconds',
+        store: 3// three items of history
       });
 
     var exit = false;
@@ -124,6 +123,7 @@ exports['given a counter'] = {
       }
     }
   }
+
 };
 
 // if this module is the script being run, then run the tests:
