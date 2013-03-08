@@ -26,11 +26,19 @@ function Counter(options) {
     this._buckets = this._store;
   }
 
-  // if this is set, then calls to rotate() will not check the time first (which allows for premature bucket rotation)
-  this._unsafe = options.unsafe || false;
-  // if this is set, then the counter takes care of rotating itself automatically by scheduling a timeout
-  // if it is not set, then you need to make sure that the counter is called at least once per each duration
-  this._automatic = (typeof options.automatic === 'undefined' ? true : options.automatic);
+  if(options.source) {
+
+    // since we are driven by the clock signal from the source, do not start new timers
+    // and allow values to be rotated at unequal intervals
+    this._unsafe = true;
+    this._automatic = false;
+  } else {
+    // if this is set, then calls to rotate() will not check the time first (which allows for premature bucket rotation)
+    this._unsafe = options.unsafe || false;
+    // if this is set, then the counter takes care of rotating itself automatically by scheduling a timeout
+    // if it is not set, then you need to make sure that the counter is called at least once per each duration
+    this._automatic = (typeof options.automatic === 'undefined' ? true : options.automatic);
+  }
 
   // track history as an array
   this._history = [];

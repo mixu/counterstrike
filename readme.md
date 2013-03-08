@@ -1,17 +1,17 @@
 # counterstrike
 
-Counters that rotate periodically for collecting metrics in memory, inspired by statsd.
+Counters that rotate periodically for collecting metrics in memory - optionally with Graphite-style lossy data aggregation.
 
-Useful for collecting metrics, such as the number of requests per hour, or the response time of requests in the past hour.
+Useful for collecting metrics, such as the number of requests per hour and aggregating them into daily stats in memory.
 
 Supports both simple counters and sets of counters/values in a hash.
 
 Key features:
 
-- Values are rotated every X seconds/minutes/hours/days, with logic that prefers rotating on well-defined intervals (e.g. at :00) to make it easy to track hourly/daily etc. metric values
-- Fixed memory usage: Maximum number of values limits how much memory is used by old data.
-- Well-defined intervals when possible: e.g. if the duration is hourly, then the day is divided into 24 periods from 00:00 - 01:00 and so on
 - No external dependencies
+- Fixed memory usage based on limited retention (optionally, with Graphite-style aggregations - see last example)
+- Values are rotated every X seconds/minutes/hours/days, with logic that prefers rotating at the beginning of the hour/day/month to make it easy to track hourly/daily etc. metric values
+- Friendly units (e.g. store '2 days' of '10 minute' data)
 - By default, the counter manages it's own timeouts, but you can also manage the timeouts manually if you prefer to do that (e.g. if you have a bunch of other tasks that also run periodically)
 
 ## API
@@ -32,6 +32,10 @@ Options `{ interval: '1h', store: '2 days' }`:
 
 Note: You should specify the interval using the appropriate units (e.g. days rather than milliseconds) because the library will then rotate the value at the beginning of the hour/day/month (e.g. at 01:00, then 02:00).
 
+- source:
+
+Advanced options:
+
 - automatic (optional): If false, then timeouts are not scheduled automatically, you need to call rotate() manually at least once every aggregation interval. Defaults to true, which means that a timeout is scheduled automatically after every interval and you don't need to worry about calling rotate().
 - unsafe (optional): If true, then calls to rotate() always rotate; defaults to false, which means that calls to rotate() check that the current time falls onto a new interval before rotating. This makes it easier to call rotate since you can make redundant calls without worrying about it.
 
@@ -48,6 +52,8 @@ Note: You should specify the interval using the appropriate units (e.g. days rat
 `.on(event, callback)`/`.once(event, callback)`: The counter is an event emitter, which has the following events:
 
 - `.on("rotate", function() {})`: triggered just before the log rotation happens. This is a good point to read or alter the value that is about to be rotated into history.
+
+- `.on("aggregate", function() {})`: triggered if the counter is initialized with the `source` parameter. Occurs when enough data has been collected at the source to write a value into the current counter. See the last example for how to use this.
 
 ### Counter.Hash API
 
@@ -87,9 +93,12 @@ Throttling a server:
 
 Throttling a task like a API request queue:
 
-Throttling a stream to xx KB/sec:
+This requires reducing the total amount when you complete a task.
+
 
 ### Keeping counts of requests, tracking load or memory over 1, 5, 15 minutes
+
+When you're tracking multiple values at the same update interval, it's best to use a CounterHash:
 
     var Counter = require('counterstrike');
 
@@ -128,10 +137,6 @@ Let's say you want to track:
 
 And you want to aggregate the values by adding the values - this is useful for something like a request counter, but for other types of countable things you might use an average, sum, min, max, or the latest value depending on what you're tracking.
 
-You could run these as different counters, each on their own time interval. The only problem with that approach is that since timeouts are not guaranteed to run at a particular time, you can get odd groupings and/or duplicate counts of items.
-
-An example of this issue might be when the lowest level emits 1, 2, 3, 4 (at slightly irregular intervals) and the upper level aggregates this at two points in time as the histories: [1, 2], [2, 3] and [4]. Here, 2 has been selected twice because the upper level timer inevitably runs either slightly before, or slightly after the scheduled time.
-
 Instead, you should use just one timeout - the lowest level one - to drive the upper level aggregation. This guarantees that each item is only processed once, and that each aggregation is consistent with each other.
 
 
@@ -139,22 +144,17 @@ Instead, you should use just one timeout - the lowest level one - to drive the u
 
     var realtime = new Counter({
             store: '1h',
-            interval: '10s',
-            buckets: (60 * 60) / 10 // retain an hour, e.g. 60 minutes in seconds / 10 seconds
+            interval: '10s'
           }),
         hourly = new Counter({
             store: '24h',
             interval: '1m',
             source: realtime
-
-            buckets: (24 * 60) // e.g. 24 hours in minutes / 1 minute
           }),
         daily = new Counter({
             store: '1w',
             interval: '1d',
             source: hourly
-
-            buckets: 7 // e.g. 1 week in days / 1 day
           });
 
     var i = 0;
@@ -181,4 +181,6 @@ Instead, you should use just one timeout - the lowest level one - to drive the u
       daily.rotate();
     });
 
+You could run these as different counters, each on their own time interval. The only problem with that approach is that since timeouts are not guaranteed to run at a particular time, you can get odd groupings and/or duplicate counts of items.
 
+An example of this issue might be when the lowest level emits 1, 2, 3, 4 (at slightly irregular intervals) and the upper level aggregates this at two points in time as the histories: [1, 2], [2, 3] and [4]. Here, 2 has been selected twice because the upper level timer inevitably runs either slightly before, or slightly after the scheduled time.
